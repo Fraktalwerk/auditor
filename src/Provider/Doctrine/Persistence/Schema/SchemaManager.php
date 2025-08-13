@@ -169,7 +169,7 @@ final readonly class SchemaManager
         if (null !== $auditTablename && !$schema->hasTable($auditTablename)) {
             $auditTable = $schema->createTable($auditTablename);
 
-            // Add columns to audit table
+            // Add columns to the audit table
             $isJsonSupported = PlatformHelper::isJsonSupported($connection);
             foreach (SchemaHelper::getAuditTableColumns($connection->getParams()['defaultTableOptions'] ?? []) as $columnName => $struct) {
                 if (Types::JSON === $struct['type'] && !$isJsonSupported) {
@@ -181,7 +181,19 @@ final readonly class SchemaManager
                 $auditTable->addColumn($columnName, $type, $struct['options']);
             }
 
-            // Add indices to audit table
+            foreach ($configuration->getEntities()[$entity]['extra_fields'] ?? [] as $columnName) {
+                $struct = $configuration->getAllFields()[$columnName];
+
+                if (Types::JSON === $struct['type'] && !$isJsonSupported) {
+                    $type = Types::TEXT;
+                } else {
+                    $type = $struct['type'];
+                }
+
+                $auditTable->addColumn($columnName, $type, $struct['options']);
+            }
+
+            // Add indices to the audit table
             foreach (SchemaHelper::getAuditTableIndices($auditTablename) as $columnName => $struct) {
                 if ('primary' === $struct['type']) {
                     $auditTable->setPrimaryKey([$columnName]);
@@ -195,6 +207,17 @@ final readonly class SchemaManager
                 } else {
                     throw new InvalidArgumentException(\sprintf("Missing key 'name' for column '%s'", $columnName));
                 }
+            }
+
+            foreach ($configuration->getEntities()[$entity]['extra_indices'] ?? [] as $columnName) {
+                $struct = $configuration->getAllIndices($auditTablename)[$columnName];
+
+                $auditTable->addIndex(
+                    [$columnName],
+                    $struct['name'],
+                    [],
+                    PlatformHelper::isIndexLengthLimited($columnName, $connection) ? ['lengths' => [191]] : []
+                );
             }
         }
 
@@ -226,10 +249,10 @@ final readonly class SchemaManager
         $table = $schema->getTable($auditTablename);
 
         // process columns
-        $this->processColumns($table, $table->getColumns(), SchemaHelper::getAuditTableColumns($connection->getParams()['defaultTableOptions'] ?? []), $connection);
+        $this->processColumns($table, $table->getColumns(), $configuration->getAllFields(), $connection);
 
         // process indices
-        $this->processIndices($table, SchemaHelper::getAuditTableIndices($auditTablename), $connection);
+        $this->processIndices($table, $configuration->getAllIndices($auditTablename), $connection);
 
         return $schema;
     }

@@ -6,7 +6,6 @@ namespace DH\Auditor\Provider\Doctrine\Persistence\Reader;
 
 use DH\Auditor\Exception\InvalidArgumentException;
 use DH\Auditor\Model\Entry;
-use DH\Auditor\Provider\Doctrine\Persistence\Helper\SchemaHelper;
 use DH\Auditor\Provider\Doctrine\Persistence\Reader\Filter\DateRangeFilter;
 use DH\Auditor\Provider\Doctrine\Persistence\Reader\Filter\FilterInterface;
 use DH\Auditor\Provider\Doctrine\Persistence\Reader\Filter\RangeFilter;
@@ -16,50 +15,26 @@ use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Result;
+use DH\Auditor\Provider\ConfigurationInterface;
+use DH\Auditor\Provider\Doctrine\Configuration;
 
 /**
  * @see QueryTest
  */
 final class Query implements QueryInterface
 {
-    /**
-     * @var string
-     */
     public const TYPE = 'type';
-
-    /**
-     * @var string
-     */
     public const CREATED_AT = 'created_at';
-
-    /**
-     * @var string
-     */
     public const TRANSACTION_HASH = 'transaction_hash';
-
-    /**
-     * @var string
-     */
     public const OBJECT_ID = 'object_id';
-
-    /**
-     * @var string
-     */
     public const USER_ID = 'blame_id';
-
-    /**
-     * @var string
-     */
     public const ID = 'id';
-
-    /**
-     * @var string
-     */
     public const DISCRIMINATOR = 'discriminator';
 
     private array $filters = [];
 
     private array $orderBy = [];
+    private Configuration $configuration;
 
     private int $offset = 0;
 
@@ -67,8 +42,9 @@ final class Query implements QueryInterface
 
     private readonly \DateTimeZone $timezone;
 
-    public function __construct(private readonly string $table, private readonly Connection $connection, string $timezone)
+    public function __construct(private readonly string $table, private readonly Connection $connection, ConfigurationInterface $configuration, string $timezone)
     {
+        $this->configuration = $configuration;
         $this->timezone = new \DateTimeZone($timezone);
 
         foreach ($this->getSupportedFilters() as $filterType) {
@@ -162,7 +138,7 @@ final class Query implements QueryInterface
 
     public function getSupportedFilters(): array
     {
-        return array_keys(SchemaHelper::getAuditTableIndices('fake'));
+        return array_keys($this->configuration->getAllIndices('fake'));
     }
 
     public function getFilters(): array
